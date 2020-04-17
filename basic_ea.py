@@ -3,85 +3,36 @@ import rdkit.Chem.AllChem as rdkit
 from rdkit.Chem.GraphDescriptors import BertzCT
 from rdkit import RDLogger
 import pymongo
-import vabene as vb
 import numpy as np
 import itertools as it
 import logging
+import pathlib
 
 rdkit_logger = RDLogger.logger()
 rdkit_logger.setLevel(RDLogger.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
-def vabene_to_rdkit(molecule):
-    editable = rdkit.EditableMol(rdkit.Mol())
-    for atom in molecule.get_atoms():
-        rdkit_atom = rdkit.Atom(atom.get_atomic_number())
-        rdkit_atom.SetFormalCharge(atom.get_charge())
-        editable.AddAtom(rdkit_atom)
+def get_building_blocks(path, functional_group_factory):
+    generator = np.random.RandomState(4)
 
-    for bond in molecule.get_bonds():
-        editable.AddBond(
-            beginAtomIdx=bond.get_atom1_id(),
-            endAtomIdx=bond.get_atom2_id(),
-            order=rdkit.BondType(bond.get_order()),
+    with open(path, 'r') as f:
+        content = f.readlines()
+
+    for smiles in content:
+        molecule = rdkit.AddHs(rdkit.MolFromSmiles(smiles))
+        molecule.AddConformer(rdkit.Conformer(molecule.GetNumAtoms()))
+        rdkit.Kekulize(molecule)
+        yield stk.BuildingBlock.init_from_rdkit_mol(
+            molecule=molecule,
+            functional_groups=[functional_group_factory],
+        ).with_position_matrix(
+            position_matrix=generator.uniform(
+                low=-100,
+                high=100,
+                size=(molecule.GetNumAtoms(), 3),
+            ),
         )
-
-    rdkit_molecule = editable.GetMol()
-    rdkit.SanitizeMol(rdkit_molecule)
-    rdkit_molecule = rdkit.AddHs(rdkit_molecule)
-    rdkit.Kekulize(rdkit_molecule)
-    rdkit_molecule.AddConformer(
-        conf=rdkit.Conformer(rdkit_molecule.GetNumAtoms()),
-    )
-    return rdkit_molecule
-
-
-def get_building_block(
-    generator,
-    atomic_number,
-    functional_group_factory,
-):
-    # The number of atoms, excluding hydrogen, in our building
-    # block.
-    num_atoms = generator.randint(7, 15)
-    # The distance between the bromine or fluorine atoms in our
-    # building block.
-    fg_separation = generator.randint(1, num_atoms-3)
-
-    atom_factory = vb.RandomAtomFactory(
-        atoms=(vb.Atom(6, 0, 4), vb.Atom(6, 0, 3), vb.Atom(8, 0, 2)),
-        # All of our building blocks will have 2 halogen atoms,
-        # separated by a random number of carbon atoms.
-        required_atoms=(
-            (vb.Atom(atomic_number, 0, 1), )
-            +
-            (vb.Atom(6, 0, 4), ) * fg_separation
-            +
-            (vb.Atom(atomic_number, 0, 1), )
-        ),
-        num_atoms=num_atoms,
-        random_seed=generator.randint(0, 1000),
-    )
-    atoms = tuple(atom_factory.get_atoms())
-    bond_factory = vb.RandomBondFactory(
-        required_bonds=tuple(
-            vb.Bond(i, i+1, 1) for i in range(fg_separation+1)
-        ),
-        random_seed=generator.randint(0, 1000),
-    )
-    bonds = bond_factory.get_bonds(atoms)
-    building_block = stk.BuildingBlock.init_from_rdkit_mol(
-        molecule=vabene_to_rdkit(vb.Molecule(atoms, bonds)),
-        functional_groups=[functional_group_factory],
-    )
-    return building_block.with_position_matrix(
-        position_matrix=generator.uniform(
-            low=-100,
-            high=100,
-            size=(building_block.get_num_atoms(), 3),
-        ),
-    )
 
 
 def get_initial_population(fluoros, bromos):
@@ -109,7 +60,8 @@ def get_fitness_value(molecule):
     rdkit_molecule = molecule.to_rdkit_mol()
     rdkit.SanitizeMol(rdkit_molecule)
     return (
-        get_rigidity(rdkit_molecule) / get_complexity(rdkit_molecule)
+        get_rigidity(rdkit_molecule)
+        / 1.2*get_complexity(rdkit_molecule)
     )
 
 
@@ -162,15 +114,14 @@ def main():
 
     logger.info('Making building blocks.')
 
-    # Make 1000 fluoro building bocks.
-    fluoros = tuple(
-        get_building_block(generator, 9, stk.FluoroFactory())
-        for i in range(1000)
+    # Load the building block databases.
+    fluoros = tuple(get_building_blocks(
+        path=pathlib.Path(__file__).parent / 'fluoros.txt',
+        functional_group_factory=stk.FluoroFactory()),
     )
-    # Make 1000 bromo building blocks.
-    bromos = tuple(
-        get_building_block(generator, 35, stk.BromoFactory())
-        for i in range(1000)
+    bromos = tuple(get_building_blocks(
+        path=pathlib.Path(__file__).parent / 'bromos.txt',
+        functional_group_factory=stk.BromoFactory()),
     )
 
     initial_population = tuple(get_initial_population(fluoros, bromos))
@@ -230,7 +181,7 @@ def main():
     logger.info('Starting EA.')
 
     generations = []
-    for generation in ea.get_generations(15):
+    for generation in ea.get_generations(100):
         for record in generation.get_molecule_records():
             db.put(record.get_molecule())
         generations.append(generation)
