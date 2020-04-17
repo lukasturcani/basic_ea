@@ -180,7 +180,7 @@ def main():
     logger.info('Starting EA.')
 
     generations = []
-    for generation in ea.get_generations(15):
+    for generation in ea.get_generations(50):
         for record in generation.get_molecule_records():
             db.put(record.get_molecule())
         generations.append(generation)

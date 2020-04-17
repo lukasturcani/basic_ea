@@ -26,7 +26,7 @@ def vabene_to_smiles(molecule):
 def get_smiles(generator, atomic_number):
     # The number of atoms, excluding hydrogen, in our building
     # block.
-    num_atoms = generator.randint(7, 15)
+    num_atoms = generator.randint(7, 16)
     # The distance between the bromine or fluorine atoms in our
     # building block.
     fg_separation = generator.randint(2, num_atoms-3)
