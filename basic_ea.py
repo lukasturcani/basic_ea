@@ -1,5 +1,6 @@
 import stk
 import rdkit.Chem.AllChem as rdkit
+from rdkit.Chem.GraphDescriptors import BertzCT
 from rdkit import RDLogger
 import pymongo
 import vabene as vb
@@ -49,7 +50,7 @@ def get_building_block(
     fg_separation = generator.randint(1, num_atoms-3)
 
     atom_factory = vb.RandomAtomFactory(
-        atoms=(vb.Atom(6, 0, 4), ),
+        atoms=(vb.Atom(6, 0, 4), vb.Atom(6, 0, 3), vb.Atom(8, 0, 2)),
         # All of our building blocks will have 2 halogen atoms,
         # separated by a random number of carbon atoms.
         required_atoms=(
@@ -95,13 +96,21 @@ def get_initial_population(fluoros, bromos):
 
 
 def get_rigidity(molecule):
-    rdkit_molecule = molecule.to_rdkit_mol()
-    rdkit.SanitizeMol(rdkit_molecule)
-    num_rotatable_bonds = rdkit.CalcNumRotatableBonds(
-        mol=rdkit_molecule,
-    )
+    num_rotatable_bonds = rdkit.CalcNumRotatableBonds(molecule)
     # Add 1 to the denominator to prevent division by 0.
     return 1 / (num_rotatable_bonds + 1)
+
+
+def get_complexity(molecule):
+    return BertzCT(molecule)
+
+
+def get_fitness_value(molecule):
+    rdkit_molecule = molecule.to_rdkit_mol()
+    rdkit.SanitizeMol(rdkit_molecule)
+    return (
+        get_rigidity(rdkit_molecule) / get_complexity(rdkit_molecule)
+    )
 
 
 def get_functional_group_type(building_block):
@@ -172,7 +181,7 @@ def main():
     db = stk.ConstructedMoleculeMongoDb(pymongo.MongoClient())
     ea = stk.EvolutionaryAlgorithm(
         initial_population=initial_population,
-        fitness_calculator=stk.FitnessFunction(get_rigidity),
+        fitness_calculator=stk.FitnessFunction(get_fitness_value),
         mutator=stk.RandomMutator(
             mutators=(
                 stk.RandomBuildingBlock(
