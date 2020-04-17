@@ -60,7 +60,8 @@ def get_fitness_value(molecule):
     rdkit_molecule = molecule.to_rdkit_mol()
     rdkit.SanitizeMol(rdkit_molecule)
     return (
-        get_rigidity(rdkit_molecule) / 2*get_complexity(rdkit_molecule)
+        get_rigidity(rdkit_molecule)
+        / 1.2*get_complexity(rdkit_molecule)
     )
 
 
@@ -180,7 +181,7 @@ def main():
     logger.info('Starting EA.')
 
     generations = []
-    for generation in ea.get_generations(50):
+    for generation in ea.get_generations(100):
         for record in generation.get_molecule_records():
             db.put(record.get_molecule())
         generations.append(generation)
