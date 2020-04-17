@@ -60,7 +60,7 @@ def get_fitness_value(molecule):
     rdkit_molecule = molecule.to_rdkit_mol()
     rdkit.SanitizeMol(rdkit_molecule)
     return (
-        get_rigidity(rdkit_molecule) / get_complexity(rdkit_molecule)
+        get_rigidity(rdkit_molecule) / 2*get_complexity(rdkit_molecule)
     )
 
 
