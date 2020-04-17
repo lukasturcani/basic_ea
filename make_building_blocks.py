@@ -32,7 +32,7 @@ def get_smiles(generator, atomic_number):
     fg_separation = generator.randint(2, num_atoms-3)
 
     atom_factory = vb.RandomAtomFactory(
-        atoms=(vb.Atom(6, 0, 4), vb.Atom(6, 0, 4), vb.Atom(8, 0, 2)),
+        atoms=(vb.Atom(6, 0, 4), vb.Atom(6, 0, 3), vb.Atom(8, 0, 2)),
         # All of our building blocks will have 2 halogen atoms,
         # separated by a random number of carbon atoms.
         required_atoms=(
@@ -50,7 +50,6 @@ def get_smiles(generator, atomic_number):
         required_bonds=tuple(
             vb.Bond(i, i+1, 1) for i in range(fg_separation+1)
         ),
-        max_bond_order=2,
         random_seed=generator.randint(0, 1000),
     )
     bonds = bond_factory.get_bonds(atoms)
