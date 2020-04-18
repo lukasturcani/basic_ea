@@ -14,8 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 def get_building_blocks(path, functional_group_factory):
-    generator = np.random.RandomState(4)
-
     with open(path, 'r') as f:
         content = f.readlines()
 
@@ -23,16 +21,31 @@ def get_building_blocks(path, functional_group_factory):
         molecule = rdkit.AddHs(rdkit.MolFromSmiles(smiles))
         molecule.AddConformer(rdkit.Conformer(molecule.GetNumAtoms()))
         rdkit.Kekulize(molecule)
-        yield stk.BuildingBlock.init_from_rdkit_mol(
+        building_block = stk.BuildingBlock.init_from_rdkit_mol(
             molecule=molecule,
             functional_groups=[functional_group_factory],
-        ).with_position_matrix(
-            position_matrix=generator.uniform(
-                low=-100,
-                high=100,
-                size=(molecule.GetNumAtoms(), 3),
-            ),
         )
+        yield building_block.with_position_matrix(
+            position_matrix=get_position_matrix(building_block),
+        )
+
+
+def get_position_matrix(molecule):
+    generator = np.random.RandomState(4)
+    position_matrix = generator.uniform(
+        low=-500,
+        high=500,
+        size=(molecule.get_num_atoms(), 3),
+    )
+    molecule = molecule.with_position_matrix(position_matrix)
+    rdkit_molecule = molecule.to_rdkit_mol()
+    rdkit.SanitizeMol(rdkit_molecule)
+    rdkit.Compute2DCoords(rdkit_molecule)
+    try:
+        rdkit.MMFFOptimizeMolecule(rdkit_molecule)
+    except Exception:
+        pass
+    return rdkit_molecule.GetConformer().GetPositions()
 
 
 def get_initial_population(fluoros, bromos):
@@ -53,7 +66,10 @@ def get_rigidity(molecule):
 
 
 def get_complexity(molecule):
-    return BertzCT(molecule)
+    num_bad_rings = sum(
+        1 for ring in rdkit.GetSymmSSSR(molecule) if len(ring) < 5
+    )
+    return BertzCT(molecule) + 10*num_bad_rings**2
 
 
 def get_fitness_value(molecule):
@@ -86,23 +102,16 @@ def get_num_rotatable_bonds(record):
     return rdkit.CalcNumRotatableBonds(molecule)
 
 
-def with_structure(molecule):
-    generator = np.random.RandomState(4)
-    position_matrix = generator.uniform(
-        low=-500,
-        high=500,
-        size=(molecule.get_num_atoms(), 3),
-    )
-    molecule = molecule.with_position_matrix(position_matrix)
+def write(molecule, path):
     rdkit_molecule = molecule.to_rdkit_mol()
     rdkit.SanitizeMol(rdkit_molecule)
     rdkit_molecule = rdkit.RemoveHs(rdkit_molecule)
-    rdkit.Compute2DCoords(rdkit_molecule)
-    try:
-        rdkit.MMFFOptimizeMolecule(rdkit_molecule)
-    except Exception:
-        pass
-    return stk.BuildingBlock.init_from_rdkit_mol(rdkit_molecule)
+    building_block = stk.BuildingBlock.init_from_rdkit_mol(
+        molecule=rdkit_molecule,
+    )
+    building_block.with_position_matrix(
+        position_matrix=get_position_matrix(building_block),
+    ).write(path)
 
 
 def main():
@@ -127,7 +136,7 @@ def main():
     initial_population = tuple(get_initial_population(fluoros, bromos))
     # Write the initial population.
     for i, record in enumerate(initial_population):
-        with_structure(record.get_molecule()).write(f'initial_{i}.mol')
+        write(record.get_molecule(), f'initial_{i}.mol')
 
     db = stk.ConstructedMoleculeMongoDb(pymongo.MongoClient())
     ea = stk.EvolutionaryAlgorithm(
@@ -181,14 +190,14 @@ def main():
     logger.info('Starting EA.')
 
     generations = []
-    for generation in ea.get_generations(30):
+    for generation in ea.get_generations(50):
         for record in generation.get_molecule_records():
             db.put(record.get_molecule())
         generations.append(generation)
 
     # Write the final population.
     for i, record in enumerate(generation.get_molecule_records()):
-        with_structure(record.get_molecule()).write(f'final_{i}.mol')
+        write(record.get_molecule(), f'final_{i}.mol')
 
     logger.info('Making fitness plot.')
 
