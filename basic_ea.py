@@ -183,8 +183,6 @@ def main():
             batch_size=2,
             random_seed=generator.randint(0, 1000),
         ),
-        # We don't need to do a normalization in this example.
-        fitness_normalizer=stk.NullFitnessNormalizer(),
     )
 
     logger.info('Starting EA.')
