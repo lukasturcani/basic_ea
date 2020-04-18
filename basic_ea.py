@@ -126,12 +126,12 @@ def main():
     # Load the building block databases.
     fluoros = tuple(get_building_blocks(
         path=pathlib.Path(__file__).parent / 'fluoros.txt',
-        functional_group_factory=stk.FluoroFactory()),
-    )
+        functional_group_factory=stk.FluoroFactory(),
+    ))
     bromos = tuple(get_building_blocks(
         path=pathlib.Path(__file__).parent / 'bromos.txt',
-        functional_group_factory=stk.BromoFactory()),
-    )
+        functional_group_factory=stk.BromoFactory(),
+    ))
 
     initial_population = tuple(get_initial_population(fluoros, bromos))
     # Write the initial population.
