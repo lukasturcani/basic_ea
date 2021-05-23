@@ -119,7 +119,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--mongodb_uri',
-        description='The MongoDB URI for the database to connect to.',
+        help='The MongoDB URI for the database to connect to.',
         default='mongodb://localhost:27017/',
     )
     args = parser.parse_args()
