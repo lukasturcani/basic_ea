@@ -1,3 +1,4 @@
+import argparse
 import stk
 import rdkit.Chem.AllChem as rdkit
 from rdkit.Chem.GraphDescriptors import BertzCT
@@ -115,6 +116,14 @@ def write(molecule, path):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--mongodb_uri',
+        description='The MongoDB URI for the database to connect to.',
+        default='mongodb://localhost:27017/',
+    )
+    args = parser.parse_args()
+
     logging.basicConfig(level=logging.INFO)
 
     # Use a random seed to get reproducible results.
@@ -138,7 +147,8 @@ def main():
     for i, record in enumerate(initial_population):
         write(record.get_molecule(), f'initial_{i}.mol')
 
-    db = stk.ConstructedMoleculeMongoDb(pymongo.MongoClient())
+    client = pymongo.MongoClient(args.mongodb_uri)
+    db = stk.ConstructedMoleculeMongoDb(client)
     ea = stk.EvolutionaryAlgorithm(
         initial_population=initial_population,
         fitness_calculator=stk.FitnessFunction(get_fitness_value),
