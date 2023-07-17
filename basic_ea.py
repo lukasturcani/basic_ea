@@ -214,15 +214,15 @@ def main() -> None:
             get_gene=get_functional_group_type,
         ),
         generation_selector=stk.Best(
-            num_batches=5,
+            num_batches=25,
             duplicate_molecules=False,
         ),
         mutation_selector=stk.Roulette(
-            num_batches=1,
+            num_batches=5,
             random_seed=generator,
         ),
         crossover_selector=stk.Roulette(
-            num_batches=1,
+            num_batches=3,
             batch_size=2,
             random_seed=generator,
         ),
