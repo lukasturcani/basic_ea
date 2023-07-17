@@ -143,6 +143,18 @@ def main() -> None:
         type=pathlib.Path,
         default=pathlib.Path("basic_ea.db"),
     )
+    parser.add_argument(
+        "--fluoros",
+        help="Path to file holding SMILES of Fluoro building blocks.",
+        type=pathlib.Path,
+        default=pathlib.Path(__file__).parent / "fluoros.txt",
+    )
+    parser.add_argument(
+        "--bromos",
+        help="Path to file holding SMILES of Bromo building blocks.",
+        type=pathlib.Path,
+        default=pathlib.Path(__file__).parent / "bromos.txt",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -154,20 +166,20 @@ def main() -> None:
     # Load the building block databases.
     fluoros = tuple(
         get_building_blocks(
-            path=pathlib.Path(__file__).parent / "fluoros.txt",
+            path=args.fluoros,
             functional_group_factory=stk.FluoroFactory(),
             generator=generator,
         )
     )
     bromos = tuple(
         get_building_blocks(
-            path=pathlib.Path(__file__).parent / "bromos.txt",
+            path=args.bromos,
             functional_group_factory=stk.BromoFactory(),
             generator=generator,
         )
     )
 
-    initial_population = tuple(get_initial_population(fluoros[:3], bromos[:3]))
+    initial_population = tuple(get_initial_population(fluoros[:5], bromos[:5]))
 
     # Write the initial population.
     initial_population_directory = pathlib.Path("initial_population")
@@ -232,7 +244,6 @@ def main() -> None:
 
     num_rotatable_bonds = []
     fitness_values = []
-    last_smiles: set[str] = set()
     for generation in ea.get_generations(50):
         db.update_entries(map(get_entry, generation.get_molecule_records()))
         num_rotatable_bonds.append(
@@ -247,14 +258,6 @@ def main() -> None:
                 for fitness_value in generation.get_fitness_values().values()
             ]
         )
-        smiles = {
-            stk.Smiles().get_key(record.get_molecule())
-            for record in generation.get_molecule_records()
-        }
-        print(smiles == last_smiles)
-        print(len(list(generation.get_mutation_records())))
-        print(len(list(generation.get_crossover_records())))
-        last_smiles = smiles
 
     # Write the final population.
     final_population_directory = pathlib.Path("final_population")
