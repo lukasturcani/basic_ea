@@ -2,6 +2,7 @@ import argparse
 import itertools
 import logging
 import pathlib
+import typing
 from collections.abc import Iterable, Iterator
 
 import atomlite
@@ -15,6 +16,8 @@ from rdkit.Chem.GraphDescriptors import BertzCT
 rdkit_logger = RDLogger.logger()
 rdkit_logger.setLevel(RDLogger.CRITICAL)
 logger = logging.getLogger(__name__)
+
+MoleculeRecord: typing.TypeAlias = stk.MoleculeRecord[stk.polymer.Linear]
 
 
 def get_building_blocks(
@@ -61,7 +64,7 @@ def get_position_matrix(
 def get_initial_population(
     fluoros: Iterable[stk.BuildingBlock],
     bromos: Iterable[stk.BuildingBlock],
-) -> Iterator[stk.MoleculeRecord[stk.polymer.Linear]]:
+) -> Iterator[MoleculeRecord]:
     for fluoro, bromo in itertools.product(fluoros, bromos):
         yield stk.MoleculeRecord(
             topology_graph=stk.polymer.Linear(
@@ -83,9 +86,7 @@ def get_complexity(molecule: rdkit.Mol) -> float:
     return BertzCT(molecule) + 10 * num_bad_rings**2
 
 
-def get_fitness_value(
-    record: stk.MoleculeRecord[stk.polymer.Linear],
-) -> float:
+def get_fitness_value(record: MoleculeRecord) -> float:
     rdkit_molecule = record.get_molecule().to_rdkit_mol()
     rdkit.SanitizeMol(rdkit_molecule)
     return 100 * (get_rigidity(rdkit_molecule) / get_complexity(rdkit_molecule))
@@ -106,9 +107,7 @@ def is_bromo(building_block: stk.BuildingBlock) -> bool:
     return functional_group.__class__ is stk.Bromo
 
 
-def get_num_rotatable_bonds(
-    record: stk.MoleculeRecord[stk.polymer.Linear],
-) -> float:
+def get_num_rotatable_bonds(record: MoleculeRecord) -> float:
     molecule = record.get_molecule().to_rdkit_mol()
     rdkit.SanitizeMol(molecule)
     return rdkit.CalcNumRotatableBonds(molecule)
@@ -128,7 +127,7 @@ def write(
     ).write(path)
 
 
-def get_entry(record: stk.MoleculeRecord[stk.polymer.Linear]) -> atomlite.Entry:
+def get_entry(record: MoleculeRecord) -> atomlite.Entry:
     return atomlite.Entry.from_rdkit(
         key=stk.Smiles().get_key(record.get_molecule()),
         molecule=record.get_molecule().to_rdkit_mol(),
@@ -192,9 +191,7 @@ def main() -> None:
         )
 
     db = atomlite.Database(args.database)
-    ea: stk.EvolutionaryAlgorithm[
-        stk.MoleculeRecord[stk.polymer.Linear]
-    ] = stk.EvolutionaryAlgorithm(
+    ea: stk.EvolutionaryAlgorithm[MoleculeRecord] = stk.EvolutionaryAlgorithm(
         initial_population=initial_population,
         fitness_calculator=stk.FitnessFunction(get_fitness_value),
         mutator=stk.RandomMutator(
